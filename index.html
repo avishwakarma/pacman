@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <title>AgentNexus Pacman — WebGPU + WebMCP</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <!-- #layout, #cabinet and its header/stage/footer bands, and #chat-panel
+         are all looked up by id in src/main.js (and styled in style.css) —
+         the ids here are the contract between markup and script, not just
+         hooks for CSS. Score/lives text and the renderer label all start
+         empty/placeholder and are filled in by main.js once the game
+         actually initializes. -->
+    <div id="layout">
+      <div id="cabinet">
+        <div id="cabinet-header">
+          <div id="hud-score">SCORE <span id="score-value">0</span></div>
+          <!-- Left empty; main.js's renderLives() fills this with one SVG
+               life-icon per remaining life. -->
+          <div id="lives" aria-label="Lives remaining"></div>
+        </div>
+
+        <div id="cabinet-stage">
+          <!-- No width/height attributes here: main.js's initCanvasRenderer
+               sets the canvas's intrinsic pixel size to the maze's own
+               dimensions (MAZE_WIDTH/MAZE_HEIGHT), while style.css scales
+               the element itself to fit the stage via object-fit: contain.
+               Mixing the two — attributes here AND a CSS size — would fight
+               each other. -->
+          <canvas id="game-canvas"></canvas>
+          <!-- Start, game-over, and pause overlays: all three start in their
+               "at rest" DOM state (start visible, the other two hidden via
+               aria-hidden) matching the pre-game state main.js's
+               startGame() sets up; main.js toggles the .visible class and
+               aria-hidden together from then on (see
+               syncStartOverlay/syncGameOverOverlay/syncPauseOverlay). -->
+          <div id="start-overlay" class="visible" aria-hidden="false">
+            <div id="start-title">PACMAN</div>
+            <div id="start-hint">Press SPACE to play</div>
+          </div>
+          <div id="game-over-overlay" aria-hidden="true">
+            <div id="game-over-title">GAME OVER</div>
+            <div id="game-over-hint">Press SPACE to restart</div>
+          </div>
+          <div id="pause-overlay" aria-hidden="true">
+            <div id="pause-title">PAUSED</div>
+            <div id="pause-hint">Press SPACE to resume</div>
+          </div>
+        </div>
+
+        <div id="cabinet-footer">
+          <div id="cabinet-logo">
+            <img src="/icons/pacman-logo.svg" alt="Pacman" />
+            <img src="/icons/arcade-tagline.svg" alt="Arcade" />
+          </div>
+          <!-- Empty; main.js sets this to the active renderer's name
+               ("Canvas 2D" on this branch) once startGame() succeeds. -->
+          <span id="renderer-label"></span>
+        </div>
+      </div>
+
+      <!-- Present on every branch (see style.css's #chat-panel comment) but
+           only visually enabled from the webmcp branch onward; on this
+           branch it renders but only echoes (see main.js's startChat()). -->
+      <aside id="chat-panel">
+        <div id="chat-panel-header">
+          <span>AI Copilot</span>
+        </div>
+        <!-- #model-status is the first child of the scrolling #chat-log
+             (not a separate fixed element below it) so it scrolls into
+             normal history once appendMessage() starts adding messages,
+             rather than permanently pinning space at the bottom. -->
+        <div id="chat-log" role="log" aria-live="polite">
+          <div id="model-status">Model not loaded yet</div>
+        </div>
+        <form id="chat-form">
+          <input
+            id="chat-input"
+            type="text"
+            placeholder="Ask the model to spawn a ghost, freeze them, ..."
+            autocomplete="off"
+          />
+          <button type="submit">Send</button>
+        </form>
+      </aside>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

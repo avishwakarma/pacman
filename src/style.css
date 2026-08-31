@@ -1,0 +1,375 @@
+/* Design tokens — colors, the mono font stack, and the handful of shared
+   spacing values reused across the cabinet/chat layout below. */
+:root {
+  --page-bg: #111111;
+  --box-bg: #171717;
+  --box-border: #292929;
+  --text-dim: #5d5d5d;
+  --text-mid: #a6a6a6;
+  --score: #f0c419;
+  --accent: #ffd23b;
+  --green: #20b03f;
+  --green-border: #005111;
+  --red: #810707;
+  --wall: #2f35aa;
+  --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --page-padding: 18px;
+  --layout-gap: 20px;
+  --cabinet-padding: 24px;
+}
+
+/* --- page shell ----------------------------------------------------- */
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  height: 100vh;
+  overflow: hidden;
+  padding: var(--page-padding);
+  background: var(--page-bg);
+  color: var(--text-mid);
+  font-family: var(--mono);
+  display: flex;
+  flex-direction: column;
+}
+
+/* --- overall layout --------------------------------------------------- */
+
+/* The cabinet + chat panel are centered as a group in the viewport, with
+   plain page background filling whatever's left on the sides — neither
+   box stretches to claim leftover width. justify-content: center (not
+   space-between/stretch) is what keeps a wide, short viewport from
+   pulling the cabinet out to full width the way flex: 1 used to. */
+#layout {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--layout-gap);
+}
+
+/* --- cabinet frame ------------------------------------------------------ */
+
+/* Cabinet — the redesigned bezel. Score/lives and the logo/renderer label
+   used to live in a separate #hud bar above a plain #cabinet box; the
+   Figma design nests both inside the cabinet itself as a header/footer
+   band around the maze, so #cabinet is now a flex column of three rows
+   (header, stage, footer) rather than a lone padded box.
+   Width is NOT flex-grow/shrink-to-fit — both were tried and don't work
+   here: flex: 1 is what stretched the whole box out to fill leftover
+   viewport width in the first place (the bug being fixed), and
+   shrink-to-fit-around-an-aspect-ratio-child doesn't converge in a single
+   layout pass (the stage's aspect-ratio-derived width doesn't feed back
+   into #cabinet's own shrink-to-fit calculation, so the stage just
+   overflowed the too-narrow box instead of sizing it). Putting
+   aspect-ratio directly on #cabinet itself sidesteps both: given a
+   definite height (100% of #layout) it's a single, non-circular
+   computation — width falls straight out of height × ratio. The ratio
+   here is the cabinet's own box in the Figma design (873x796), not the
+   maze's (1320x1084, that's `#cabinet-stage`'s job below) — the two
+   differ because the header/footer/padding/gaps add height without
+   adding width. */
+#cabinet {
+  flex: 0 0 auto;
+  height: 100%;
+  aspect-ratio: 873 / 796;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: var(--box-bg);
+  border-radius: 30px;
+  padding: var(--cabinet-padding);
+}
+
+/* --- HUD: score / lives -------------------------------------------------- */
+
+/* Score / lives / AUTO as three grid columns instead of a single flex
+   row: lives needs to sit centered over the maze (matching the Figma
+   design), not merely next to the score, and a plain flex row with
+   space-between only centers a middle item when its neighbors are equal
+   width. The 1fr/auto/1fr split centers the middle column regardless of
+   how wide SCORE or AUTO end up being — including on branches where
+   there's no AUTO button at all and the third column is simply empty. */
+#cabinet-header {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+}
+
+#hud-score {
+  justify-self: start;
+  color: var(--text-dim);
+  font-weight: 700;
+  font-size: 18px;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+#hud-score span {
+  color: var(--score);
+  font-weight: 800;
+  font-size: 24px;
+  font-variant-numeric: tabular-nums;
+  margin-left: 6px;
+}
+
+#lives {
+  grid-column: 2;
+  justify-self: center;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+#lives .life-icon {
+  width: 18px;
+  height: 18px;
+  fill: var(--accent);
+}
+
+/* --- cabinet stage: canvas + overlays ------------------------------------ */
+
+/* Cabinet stage — the canvas + its overlays. object-fit: contain on the
+   canvas itself does what a hand-rolled max-height calc() used to do (see
+   git history for the earlier version of this file): the canvas is a flex
+   sibling of the header/footer now, not the sole child of a box sized
+   against the viewport, so its available height is whatever flexbox
+   leaves after the header/footer take their content height — a values
+   that isn't known ahead of time the way "100vh minus a fixed HUD height"
+   was. object-fit: contain scales the canvas to fit that leftover space
+   without distortion, with no calc() needed and no risk of the
+   min-width/height:auto or ambiguous-percentage-height traps that bit the
+   old max-height: 100% approach.
+*/
+#cabinet-stage {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+#game-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  background: #000;
+  border: 1px solid var(--wall);
+  border-radius: 8px;
+}
+
+/* Shared by the pre-game "press space to play" overlay, the game-over
+   overlay, and the pause overlay — same visual language, only the text
+   differs. z-index: 2 puts all three above #game-canvas, which is also
+   absolutely positioned within this same relatively-positioned
+   #cabinet-stage. */
+#start-overlay,
+#game-over-overlay,
+#pause-overlay {
+  position: absolute;
+  inset: 0;
+  border-radius: 8px;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: rgba(0, 0, 0, 0.65);
+  pointer-events: none;
+  z-index: 2;
+}
+
+#start-overlay.visible,
+#game-over-overlay.visible,
+#pause-overlay.visible {
+  display: flex;
+}
+
+#start-title,
+#game-over-title,
+#pause-title {
+  color: var(--accent);
+  font: bold 44px var(--mono);
+  text-shadow: 0 0 12px rgba(255, 210, 59, 0.6);
+}
+
+#start-hint,
+#game-over-hint,
+#pause-hint {
+  color: #d9dcff;
+  font: 20px var(--mono);
+}
+
+/* --- cabinet footer: logo + renderer label -------------------------------- */
+
+#cabinet-footer {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+#cabinet-logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+#cabinet-logo img {
+  display: block;
+  height: 20px;
+  width: auto;
+}
+
+#renderer-label {
+  flex: 0 0 auto;
+  color: var(--red);
+  font-weight: 800;
+  font-size: 16px;
+  white-space: nowrap;
+}
+
+/* Pill buttons — shared shape for AUTO (player-agent) and any future
+   cabinet-header action button. */
+.pill-button {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--box-bg);
+  border: 2px solid var(--box-border);
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color 150ms ease, color 150ms ease, background 150ms ease;
+}
+
+/* --- chat panel ----------------------------------------------------------- */
+
+/* Chat panel — always present in the DOM (kept structurally identical
+   across every branch so the redesign only has to be written once), but
+   only actually usable from the webmcp branch onward, where it stops
+   being display: none. It's a normal flex column in #layout now, not a
+   position: fixed slide-in overlay — there's no toggle/close control
+   anymore, so it never needs to reflow anything on open/close. */
+#chat-panel {
+  display: none;
+  flex-direction: column;
+  gap: 12px;
+  width: min(327px, 32vw);
+  height: 100%;
+  padding: 20px;
+  background: var(--box-bg);
+  border-radius: 30px;
+}
+
+#chat-panel-header {
+  flex: 0 0 auto;
+  font-size: 14px;
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+}
+
+/* #model-status lives inside #chat-log now (its first child, see
+   index.html) rather than pinned below it as a separate fixed element —
+   that way it scrolls away with the rest of the history once there's
+   enough conversation to fill the panel, instead of permanently eating
+   space at the bottom. appendMessage() (ai/chat-panel.js) already scrolls
+   to the newest message on every append, so the latest chat always stays
+   in view and the status card just becomes normal scrollback. */
+#chat-log {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13.5px;
+  line-height: 1.5;
+  scrollbar-width: thin;
+  scrollbar-color: var(--box-border) transparent;
+}
+
+#chat-log::-webkit-scrollbar {
+  width: 6px;
+}
+
+#chat-log::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+#chat-log::-webkit-scrollbar-thumb {
+  background: var(--box-border);
+  border-radius: 3px;
+}
+
+#chat-log::-webkit-scrollbar-thumb:hover {
+  background: #3a3a3a;
+}
+
+#chat-log .message {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--page-bg);
+  border: 1px solid var(--box-border);
+  color: #d9dcff;
+}
+
+#chat-log .message.user {
+  border-color: var(--wall);
+}
+
+/* --- chat input row -------------------------------------------------- */
+
+#chat-form {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 8px;
+}
+
+#chat-form[hidden] {
+  display: none;
+}
+
+#chat-input {
+  flex: 1;
+  background: var(--page-bg);
+  border: 1px solid #575757;
+  border-radius: 21px;
+  padding: 8px 14px;
+  color: #d9dcff;
+  font-size: 13px;
+}
+
+#chat-input::placeholder {
+  color: #707070;
+}
+
+#chat-form button {
+  background: var(--wall);
+  color: #fff;
+  border: none;
+  border-radius: 21px;
+  padding: 8px 16px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+/* --- model-status card -------------------------------------------------
+   Styled plainly on purpose — it reads as ordinary chat scrollback (see
+   the #chat-log comment above for why it lives inside the log at all). */
+#model-status {
+  flex: 0 0 auto;
+  font-size: 12px;
+  color: var(--text-mid);
+}
