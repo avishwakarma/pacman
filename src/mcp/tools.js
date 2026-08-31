@@ -1,4 +1,4 @@
-// Stage 4 (WebMCP): the tool handlers the model can call once registered
+// Stage 3 (WebMCP): the tool handlers the model can call once registered
 // via register-tools.js. Each one mutates `state` (gameState.js) directly,
 // so the effect shows up on the very next rendered frame — no extra
 // plumbing needed between "the model decided to do this" and "the game
@@ -17,8 +17,8 @@ const GHOST_OVERLOAD_BONUS = 1000;
 
 // Nearest reachable cell to the player, by real shortest path, that
 // doesn't already have a power pellet on it — reuses maze.js's
-// bfsDistances the same way ghosts.js and agent.js do, rather than a plain
-// grid scan, so it can never land somewhere unreachable.
+// bfsDistances the same way ghosts.js does, rather than a plain grid scan,
+// so it can never land somewhere unreachable.
 function findPowerPelletSpot(state) {
   const distances = [...bfsDistances(state.player.col, state.player.row).entries()];
   distances.sort((a, b) => a[1] - b[1]);
@@ -33,6 +33,7 @@ export function createTools(state) {
     getGameState() {
       return {
         score: state.score,
+        lives: state.lives,
         ghostCount: state.ghosts.length,
         pelletsRemaining: state.pellets.size,
         powerPelletsRemaining: state.powerPellets.size,
@@ -40,13 +41,22 @@ export function createTools(state) {
       };
     },
 
-    // No arguments taken or needed: game/ghosts.js's spawnGhost already
-    // picks a "valid" position itself — spread out around the ghost pen
-    // and snapped to the nearest open (non-wall) grid cell — so this
-    // handler is pure passthrough plus reporting the result back.
-    spawnGhost() {
-      const ghost = spawnGhost(state);
-      return { spawned: true, ghostId: ghost.id, ghostCount: state.ghosts.length };
+    // game/ghosts.js's spawnGhost already picks a "valid" position itself
+    // — spread out around the ghost pen and snapped to the nearest open
+    // (non-wall) grid cell — so there's no position argument here, only
+    // how many. `count` is untyped model output same as freezeGhosts's
+    // `seconds`: Number(count) || 1 covers it arriving as a string, NaN,
+    // or missing entirely, and clamping to [1, 5] both rules out a
+    // negative/zero spawn and stops "spawn a hundred ghosts" from actually
+    // trying to — 5 is already the ghostOverload threshold, spawning more
+    // than that in one call has no purpose the game rewards.
+    spawnGhost({ count } = {}) {
+      const total = Math.min(5, Math.max(1, Math.round(Number(count) || 1)));
+      const ghostIds = [];
+      for (let i = 0; i < total; i++) {
+        ghostIds.push(spawnGhost(state).id);
+      }
+      return { spawned: true, ghostIds, ghostCount: state.ghosts.length };
     },
 
     // `seconds` comes straight from model-generated tool-call arguments,

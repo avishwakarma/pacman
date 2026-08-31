@@ -1,28 +1,41 @@
-// Stage 2 (this branch): adds real WebGPU rendering on top of Stage 1's
-// Canvas 2D game. chooseRenderer() below tries WebGPU first and falls back
-// to the exact same Canvas 2D renderer from `main` on any failure — the
-// game logic itself (game/*.js) has no idea which one is drawing it. The
-// autopilot agent and WebMCP tool-calling still exist in this repo
-// (game/agent.js, mcp/*.js, ai/tool-loop.js) but aren't wired in yet — see
-// README.md's branch table for what `player-agent` and `webmcp` add.
+// Stage 3 (this branch): wires the chat panel to actually drive the game —
+// the local WebLLM model gets the tool schemas from mcp/register-tools.js
+// and can call them via ai/tool-loop.js's plain OpenAI-style tool-calling
+// loop. register-tools.js separately attempts a best-effort registration
+// against the browser's own document.modelContext/navigator.modelContext
+// (the actual WebMCP API, still unstable — see SETUP.md) so an external
+// WebMCP-aware agent could discover these same tools too, but the chat
+// panel here doesn't depend on that succeeding.
+//
+// mcp/tools.js's createTools(state) closes over the live game state once,
+// at startup — so restarting the game now resets state's fields in place
+// (Object.assign) instead of replacing the object, which is the one
+// behavior change this branch needed: it keeps that closure pointed at the
+// same object forever, restart or not. The autonomous LLM-driven agent
+// still exists in this repo's future (see README.md's branch table for
+// what `player-agent`, the final stage, builds on top of this).
 
 import './style.css';
 import { checkWebGPUSupport } from './render/utils/capability-check.js';
 import { renderFallback, initCanvasRenderer, renderFrame } from './render/canvas-renderer.js';
 import { initRenderer, renderFrameGPU } from './render/webgpu-renderer.js';
 import { loadModel } from './ai/llm-loader.js';
-import { initChatPanel, appendMessage } from './ai/chat-panel.js';
+import { initChatPanel, appendMessage, appendToolCall } from './ai/chat-panel.js';
+import { runToolLoop } from './ai/tool-loop.js';
+import { renderModelStatusLoading, renderModelStatusLoaded, renderModelStatusError } from './ai/model-status-ui.js';
 import { createInitialState } from './game/gameState.js';
 import { handleKeyDown, movePlayer } from './game/player.js';
 import { moveGhosts, startFrightenedMode, updateGhostModes } from './game/ghosts.js';
 import { tryEatPellet, tryEatPowerPellet } from './game/pellets.js';
 import { checkGhostCollision } from './game/collisions.js';
+import { createTools } from './mcp/tools.js';
+import { registerTools } from './mcp/register-tools.js';
 
 const canvas = document.getElementById('game-canvas');
-const modelStatus = document.getElementById('model-status');
 const scoreValue = document.getElementById('score-value');
 const livesEl = document.getElementById('lives');
 const rendererLabel = document.getElementById('renderer-label');
+const chatForm = document.getElementById('chat-form');
 const startOverlay = document.getElementById('start-overlay');
 const gameOverOverlay = document.getElementById('game-over-overlay');
 const pauseOverlay = document.getElementById('pause-overlay');
@@ -145,7 +158,10 @@ async function startGame() {
         started = true;
         syncStartOverlay(started);
       } else if (state.gameOver) {
-        state = createInitialState();
+        // Object.assign, not reassignment — mcp/tools.js's createTools(state)
+        // closes over this exact object once; replacing the reference would
+        // orphan that closure on the very first restart after Stage 3.
+        Object.assign(state, createInitialState());
       } else {
         paused = !paused;
         syncPauseOverlay(paused);
@@ -186,27 +202,61 @@ async function startGame() {
     requestAnimationFrame(tick);
   }
   requestAnimationFrame(tick);
+
+  return state;
 }
 
-// Chat and model loading are independent of the game and of each other:
-// the panel is usable (if only echoing, for now) whether or not the model
-// has finished downloading, and loadModel's progress callback/promise just
-// keep #model-status current as loading proceeds in the background.
-function startChat() {
-  initChatPanel(() => {
-    appendMessage('assistant', 'Chat is wired up, but tool calling comes in a later stage — for now this just echoes.');
+// state: the live game object from startGame() — createTools(state) closes
+// over it once, here, and every tool call after this reads/mutates that
+// same object directly.
+function startChat(state) {
+  const tools = createTools(state);
+  const webmcpResult = registerTools(tools);
+  console.log('WebMCP registration:', webmcpResult);
+
+  let engine = null;
+
+  initChatPanel(async (text) => {
+    if (!engine) {
+      // The input is hidden until the model has loaded (see below), so this
+      // is only a defensive fallback, not a path a real user can reach.
+      appendMessage('assistant', "The model's still loading — try again in a moment.");
+      return;
+    }
+    try {
+      // null means a tool ran and its card already says what happened —
+      // runToolLoop's own comment explains when that happens — so there's
+      // deliberately no bubble at all here, not even a placeholder one.
+      // Only an actual empty reply (no tool, no text either) still shows
+      // "(no reply)", so a totally silent turn isn't mistaken for one that
+      // did nothing.
+      const reply = await runToolLoop(engine, tools, text, appendToolCall);
+      if (reply != null) appendMessage('assistant', reply || '(no reply)');
+    } catch (err) {
+      console.error(err);
+      appendMessage('assistant', `Something went wrong: ${err.message}`);
+    }
   });
 
-  loadModel((progress, text) => {
-    modelStatus.textContent = `Loading model… ${Math.round(progress * 100)}% ${text ?? ''}`.trim();
-  })
-    .then(() => {
-      modelStatus.textContent = 'Model loaded';
+  renderModelStatusLoading(0, 'Starting…');
+
+  loadModel((progress, text) => renderModelStatusLoading(progress, text))
+    .then((loadedEngine) => {
+      engine = loadedEngine;
+      renderModelStatusLoaded();
+      chatForm.hidden = false;
     })
     .catch((err) => {
-      modelStatus.textContent = `Model failed to load: ${err.message}`;
+      renderModelStatusError(err.message);
     });
 }
 
-startGame();
-startChat();
+async function main() {
+  const state = await startGame();
+  // startGame() returns undefined if setup threw (see its own catch block,
+  // which already rendered a fallback message) — chat has nothing to wire
+  // itself to in that case, so it's skipped rather than starting against a
+  // dead game.
+  if (state) startChat(state);
+}
+main();

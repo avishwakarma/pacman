@@ -1,18 +1,18 @@
-// Loads a small local LLM in-browser via WebLLM (MLC AI). This already
-// works out of the box — Stage 2 wires the chat panel to call it and to
-// register WebMCP tools the model can invoke.
+// Loads a local LLM in-browser via WebLLM (MLC AI). This already works out
+// of the box — Stage 3 wires the chat panel to call it and to register
+// WebMCP tools the model can invoke.
 //
-// Model choice: Llama 3.2 1B Instruct, quantized, picked for fast download
-// on conference wifi. Swap MODEL_ID for a different WebLLM prebuilt model
-// if you want to experiment (see SETUP.md for the tradeoffs). Note this
-// particular model is instruct-only, not one of WebLLM's tool-calling
-// allowlist — passing `tools` to it throws. A later stage swaps MODEL_ID
-// to a Hermes-family model specifically to unlock ai/tool-loop.js's
-// `tools` param (see that file for the quirks that swap brings with it).
-
+// Model choice: WebLLM only supports OpenAI-style tool-calling (the
+// `tools` param in engine.chat.completions.create) on a specific allowlist
+// of Hermes-family models — small models like Llama 3.2 1B throw "not
+// supported for ChatCompletionRequest.tools" if you pass `tools` at all.
+// Hermes-2-Pro-Llama-3-8B is the broadest-compatible option on that list
+// (~5GB — see SETUP.md for the download-size tradeoff and why the smaller
+// Mistral-7B variant isn't used instead: it needs the shader-f16 GPU
+// feature specifically, which not every laptop in the room will have).
 import { CreateMLCEngine } from '@mlc-ai/web-llm';
 
-export const MODEL_ID = 'Llama-3.2-1B-Instruct-q4f16_1-MLC';
+export const MODEL_ID = 'Hermes-2-Pro-Llama-3-8B-q4f16_1-MLC';
 
 // onProgress(fraction, text): fires repeatedly while the (multi-hundred-MB+)
 // model weights download and get cached, so the caller can render a

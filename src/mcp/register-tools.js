@@ -1,4 +1,4 @@
-// Stage 4 (WebMCP): the JSON Schema + description for every tool from
+// Stage 3 (WebMCP): the JSON Schema + description for every tool from
 // tools.js, plus registering them against the browser's model-context API
 // so any WebMCP-aware agent (not just our own chat panel) can discover and
 // call them.
@@ -30,15 +30,25 @@ export const TOOL_SCHEMAS = [
     parameters: { type: 'object', properties: {}, additionalProperties: false },
   },
   {
-    // No parameters on purpose: the model never chooses *where* — the
+    // No position parameter, same reasoning throughout this file: the
     // handler (game/ghosts.js's spawnGhost) always picks the position
     // itself, spreading spawns out in a ring around the ghost pen and
     // snapping to the nearest actually-open grid cell (maze.js's
     // findOpenCellNear), so "valid" here just means "not inside a wall or
     // the pen, and not stacked on another ghost's exact spawn cell."
+    // `count` does exist, on purpose: "spawn two more ghosts" needs to be
+    // satisfiable in one tool call, not two identical ones — see
+    // ai/tool-loop.js's MAX_TOOL_ROUNDS comment for why more than one call
+    // per message turned out not to be worth the reliability cost.
     name: 'spawnGhost',
-    description: 'Add one more ghost to the maze at a valid spawn point.',
-    parameters: { type: 'object', properties: {}, additionalProperties: false },
+    description: 'Add one or more ghosts to the maze at valid spawn points.',
+    parameters: {
+      type: 'object',
+      properties: {
+        count: { type: 'number', description: 'How many ghosts to spawn. Defaults to 1 if omitted.' },
+      },
+      additionalProperties: false,
+    },
   },
   {
     // `seconds` is untrusted model output — a free-form number, no min/max

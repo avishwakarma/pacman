@@ -254,16 +254,51 @@ body {
   transition: border-color 150ms ease, color 150ms ease, background 150ms ease;
 }
 
+.pill-button img,
+.pill-button svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+
+/* AUTO (Autonomous Play) — the third #cabinet-header grid column
+   (1fr auto 1fr); justify-self: end keeps it a compact pill pinned to
+   the right edge instead of stretching to fill that column's full width
+   (a CSS grid item's default justify-self is stretch). Green scheme
+   matches the Figma AUTO pill. Active/inactive needs to actually read as
+   two different states at a glance (autopilot is easy to toggle without
+   noticing it took, since it doesn't otherwise change anything on
+   screen) — the outline-only look is the resting/off state; pressed
+   fills solid green with dark text, the same on/off pattern the old
+   accent-yellow toggle used before this redesign. Unused on this branch,
+   no JS toggles aria-pressed yet — see player-agent for the wiring. */
+#autoplay-toggle {
+  justify-self: end;
+  border-color: var(--green-border);
+  color: var(--green);
+}
+
+#autoplay-toggle:hover {
+  border-color: var(--green);
+}
+
+#autoplay-toggle[aria-pressed="true"] {
+  background: var(--green);
+  border-color: var(--green);
+  color: #04220b;
+}
+
 /* --- chat panel ----------------------------------------------------------- */
 
 /* Chat panel — always present in the DOM (kept structurally identical
    across every branch so the redesign only has to be written once), but
-   only actually usable from the webmcp branch onward, where it stops
-   being display: none. It's a normal flex column in #layout now, not a
-   position: fixed slide-in overlay — there's no toggle/close control
-   anymore, so it never needs to reflow anything on open/close. */
+   only actually usable from this branch onward — main/webgpu keep this
+   display: none since chat doesn't do anything there yet. It's a normal
+   flex column in #layout now, not a position: fixed slide-in overlay —
+   there's no toggle/close control anymore, so it never needs to reflow
+   anything on open/close. */
 #chat-panel {
-  display: none;
+  display: flex;
   flex-direction: column;
   gap: 12px;
   width: min(327px, 32vw);
@@ -329,6 +364,50 @@ body {
   border-color: var(--wall);
 }
 
+#chat-log .tool-card {
+  border-color: var(--accent);
+  padding: 0;
+  overflow: hidden;
+}
+
+#chat-log .tool-card-name {
+  padding: 6px 10px;
+  background: rgba(255, 210, 59, 0.1);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+#chat-log .tool-card-body {
+  padding: 6px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 12px;
+}
+
+#chat-log .tool-card-body.plain {
+  color: var(--text-dim);
+}
+
+#chat-log .tool-card-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+#chat-log .tool-card-key {
+  color: var(--text-dim);
+}
+
+#chat-log .tool-card-value {
+  color: var(--text);
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
 /* --- chat input row -------------------------------------------------- */
 
 #chat-form {
@@ -370,15 +449,14 @@ body {
    ai/model-status-ui.js's renderModelStatus* helpers, which rewrite this
    element's innerHTML rather than juggling several conditionally-hidden
    children, since the states are structurally different, not just
-   recolored. Unused on this branch (nothing sets these classes yet) —
-   see the #chat-log comment above for why the card lives inside the log
-   at all once it's wired in. */
+   recolored. Styled plainly otherwise — it reads as ordinary chat
+   scrollback (see the #chat-log comment above for why it lives inside
+   the log at all). */
 #model-status {
   flex: 0 0 auto;
   border-radius: 10px;
   padding: 10px 14px;
   font-size: 12px;
-  color: var(--text-mid);
 }
 
 #model-status.loading {

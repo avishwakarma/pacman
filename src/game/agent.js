@@ -40,35 +40,41 @@ function chooseAmongOpenDirections(col, row, currentDirection, pickBest) {
   return pickBest(options);
 }
 
+// Picks randomly among whichever open directions tie for the best score
+// (by `scoreFor`, e.g. "smallest distance to target") instead of always
+// the same one — without this, ties were always broken in a fixed order
+// (Object.keys(DIRECTIONS) order), so the autopilot walked the exact same
+// path every single run. It's still never a wrong choice: every tied
+// option is equally optimal, only which of several equally-good paths
+// gets taken varies. Same tie-breaking-with-randomness pattern
+// ghosts.js's frightened-flee logic already uses.
+function pickBestWithRandomTiebreak(options, scoreFor, isBetter) {
+  let bestScore = scoreFor(options[0]);
+  for (const direction of options) {
+    const score = scoreFor(direction);
+    if (isBetter(score, bestScore)) bestScore = score;
+  }
+  const tied = options.filter((direction) => scoreFor(direction) === bestScore);
+  return tied[Math.floor(Math.random() * tied.length)];
+}
+
 function stepToward(col, row, currentDirection, distanceToTarget) {
   return chooseAmongOpenDirections(col, row, currentDirection, (options) => {
-    let best = options[0];
-    let bestDistance = Infinity;
-    for (const direction of options) {
+    const scoreFor = (direction) => {
       const [dx, dy] = DIRECTIONS[direction];
-      const distance = distanceToTarget.get(`${col + dx},${row + dy}`) ?? Infinity;
-      if (distance < bestDistance) {
-        bestDistance = distance;
-        best = direction;
-      }
-    }
-    return best;
+      return distanceToTarget.get(`${col + dx},${row + dy}`) ?? Infinity;
+    };
+    return pickBestWithRandomTiebreak(options, scoreFor, (score, best) => score < best);
   });
 }
 
 function stepAway(col, row, currentDirection, distanceToThreat) {
   return chooseAmongOpenDirections(col, row, currentDirection, (options) => {
-    let best = options[0];
-    let bestDistance = -Infinity;
-    for (const direction of options) {
+    const scoreFor = (direction) => {
       const [dx, dy] = DIRECTIONS[direction];
-      const distance = distanceToThreat.get(`${col + dx},${row + dy}`) ?? -Infinity;
-      if (distance > bestDistance) {
-        bestDistance = distance;
-        best = direction;
-      }
-    }
-    return best;
+      return distanceToThreat.get(`${col + dx},${row + dy}`) ?? -Infinity;
+    };
+    return pickBestWithRandomTiebreak(options, scoreFor, (score, best) => score > best);
   });
 }
 
