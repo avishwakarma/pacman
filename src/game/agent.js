@@ -1,17 +1,21 @@
-// Stage 3: a simple autopilot that plays the game by itself. It reuses the
-// exact same tools the ghost chase AI already uses — maze.js's bfsDistances
-// (real shortest-path distance through the maze, not straight-line) and
-// the same "gather open directions, minimize/maximize a distance map"
-// pattern ghosts.js already established (see pickClosestDirection /
-// pickFleeDirection there) — just aimed at a different goal: head for the
-// nearest pellet, unless a chasing ghost is close enough to be a real
-// threat, in which case flee it instead.
+// The autopilot: a simple, fully deterministic bot that plays the game by
+// itself when toggled on from the HUD. It reuses the exact same BFS-based
+// approach the ghost chase AI uses (see the identical
+// chooseAmongOpenDirections pattern in ghosts.js) — head for the nearest
+// pellet, flee a chasing ghost that gets too close.
 //
-// Crucially, this file never touches movePlayer or the movement engine
-// directly — it only ever sets state.player.queuedDirection, the exact
-// field a keypress sets in player.js. The player's own movement code can't
-// tell the difference between a human holding a direction key and the
-// agent continuously re-deciding one, which is what keeps this file small.
+// This is intentionally plain UI-controlled JS, not chat/LLM-controlled —
+// an earlier version let the model turn it on and steer its strategy via
+// WebMCP tools, but reliably getting a small local model to remember "the
+// autopilot needs to be turned on" every check-in wasn't dependable enough
+// for something this basic, and the periodic re-invocation added a lot of
+// failure surface (context growth, races) for what it was worth. This
+// stays simple and just works.
+//
+// It never touches movePlayer or the movement engine directly — it only
+// ever sets state.player.queuedDirection, the exact field a keypress sets
+// in player.js. The player's own movement code can't tell the difference
+// between a human holding a direction key and this running every frame.
 
 import { DIRECTIONS, REVERSE, isDirectionOpen } from './movement.js';
 import { bfsDistances } from './maze.js';

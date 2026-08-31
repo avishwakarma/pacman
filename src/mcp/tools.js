@@ -1,10 +1,15 @@
-// Stage 3 (WebMCP): the tool handlers the model can call once registered
-// via register-tools.js. Each one mutates `state` (gameState.js) directly,
-// so the effect shows up on the very next rendered frame — no extra
-// plumbing needed between "the model decided to do this" and "the game
-// visibly did it." createTools(state) closes over one game's state and
-// returns a plain object of { toolName: handler(args) } — register-tools.js
-// pairs each handler up with its JSON Schema and description.
+// The tool handlers the model can call once registered via
+// register-tools.js. Each one mutates `state` (gameState.js) directly, so
+// the effect shows up on the very next rendered frame — no extra plumbing
+// needed between "the model decided to do this" and "the game visibly did
+// it." createTools(state) closes over one game's state and returns a
+// plain object of { toolName: handler(args) } — register-tools.js pairs
+// each handler up with its JSON Schema and description.
+//
+// The autopilot (game/agent.js) is deliberately NOT exposed here — it's a
+// plain HUD toggle, not chat-controlled. Wiring an LLM into a loop that
+// has to reliably remember to flip a specific flag turned out not to be
+// worth the reliability cost for something this basic; see main.js.
 
 import { spawnGhost } from '../game/ghosts.js';
 import { bfsDistances } from '../game/maze.js';

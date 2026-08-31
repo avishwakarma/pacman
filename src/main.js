@@ -1,19 +1,12 @@
-// Stage 3 (this branch): wires the chat panel to actually drive the game —
-// the local WebLLM model gets the tool schemas from mcp/register-tools.js
-// and can call them via ai/tool-loop.js's plain OpenAI-style tool-calling
-// loop. register-tools.js separately attempts a best-effort registration
-// against the browser's own document.modelContext/navigator.modelContext
-// (the actual WebMCP API, still unstable — see SETUP.md) so an external
-// WebMCP-aware agent could discover these same tools too, but the chat
-// panel here doesn't depend on that succeeding.
-//
-// mcp/tools.js's createTools(state) closes over the live game state once,
-// at startup — so restarting the game now resets state's fields in place
-// (Object.assign) instead of replacing the object, which is the one
-// behavior change this branch needed: it keeps that closure pointed at the
-// same object forever, restart or not. The autonomous LLM-driven agent
-// still exists in this repo's future (see README.md's branch table for
-// what `player-agent`, the final stage, builds on top of this).
+// Stage 4 (this branch, final): adds a deterministic "Autonomous Play"
+// toggle (game/agent.js) — a plain HUD button, not chat/LLM-controlled.
+// An earlier version let the model turn it on and steer its strategy via
+// WebMCP tools, but reliably getting a small local model to remember "the
+// autopilot needs to be on" every check-in wasn't dependable enough for
+// something this basic, and the periodic re-invocation added a lot of
+// failure surface (context growth, races between calls) for what it was
+// worth. This keeps Stage 3's reactive tool set unchanged and adds the
+// autopilot purely as its own UI control.
 
 import './style.css';
 import { checkWebGPUSupport } from './render/utils/capability-check.js';
@@ -28,11 +21,13 @@ import { handleKeyDown, movePlayer } from './game/player.js';
 import { moveGhosts, startFrightenedMode, updateGhostModes } from './game/ghosts.js';
 import { tryEatPellet, tryEatPowerPellet } from './game/pellets.js';
 import { checkGhostCollision } from './game/collisions.js';
+import { updateAgent, toggleAgent, isAgentActive } from './game/agent.js';
 import { createTools } from './mcp/tools.js';
 import { registerTools } from './mcp/register-tools.js';
 
 const canvas = document.getElementById('game-canvas');
 const scoreValue = document.getElementById('score-value');
+const autoplayToggle = document.getElementById('autoplay-toggle');
 const livesEl = document.getElementById('lives');
 const rendererLabel = document.getElementById('renderer-label');
 const chatForm = document.getElementById('chat-form');
@@ -72,6 +67,10 @@ function isTypingInField() {
 function syncGameOverOverlay(state) {
   gameOverOverlay.classList.toggle('visible', state.gameOver);
   gameOverOverlay.setAttribute('aria-hidden', String(!state.gameOver));
+}
+
+function syncAutoplayToggle(state) {
+  autoplayToggle.setAttribute('aria-pressed', String(isAgentActive(state)));
 }
 
 // Tries WebGPU first, falls back to Canvas 2D on any failure — both draw
@@ -172,6 +171,11 @@ async function startGame() {
     handleKeyDown(state, event);
   });
 
+  autoplayToggle.addEventListener('click', () => {
+    toggleAgent(state);
+    syncAutoplayToggle(state);
+  });
+
   let lastTime = performance.now();
   function tick(now) {
     // Clamp dt so a stalled/backgrounded tab resuming doesn't let an
@@ -187,6 +191,7 @@ async function startGame() {
     // pellet/collision checks that read this frame's positions, not last
     // frame's.
     if (started && !state.gameOver && !paused) {
+      updateAgent(state);
       movePlayer(state, deltaTime);
       updateGhostModes(state, deltaTime);
       moveGhosts(state, deltaTime);
@@ -198,6 +203,7 @@ async function startGame() {
     }
 
     syncGameOverOverlay(state);
+    syncAutoplayToggle(state);
     drawFrame(state);
     requestAnimationFrame(tick);
   }

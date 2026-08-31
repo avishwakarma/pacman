@@ -20,8 +20,8 @@
 //       window, for the doubling 200/400/800/1600 bonus,
 //     ghostsFreezeTimer: seconds left that ghost movement is paused for
 //       (the WebMCP freezeGhosts tool sets this; 0 = not frozen),
-//     agentActive: whether the Stage 3 autopilot (game/agent.js) is
-//       currently driving the player instead of the keyboard,
+//     agentActive: whether the autopilot (game/agent.js) is currently
+//       driving the player instead of the keyboard,
 //     gameOver: false,
 //   }
 

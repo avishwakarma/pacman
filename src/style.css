@@ -270,8 +270,7 @@ body {
    noticing it took, since it doesn't otherwise change anything on
    screen) — the outline-only look is the resting/off state; pressed
    fills solid green with dark text, the same on/off pattern the old
-   accent-yellow toggle used before this redesign. Unused on this branch,
-   no JS toggles aria-pressed yet — see player-agent for the wiring. */
+   accent-yellow toggle used before this redesign. */
 #autoplay-toggle {
   justify-self: end;
   border-color: var(--green-border);
@@ -364,19 +363,24 @@ body {
   border-color: var(--wall);
 }
 
+/* Tool-call result card — replaces a raw JSON string with a small
+   labeled table, so a getGameState/spawnGhost/etc. result reads at a
+   glance instead of needing to be parsed like a log line. */
 #chat-log .tool-card {
-  border-color: var(--accent);
   padding: 0;
   overflow: hidden;
+  border-color: var(--accent);
 }
 
 #chat-log .tool-card-name {
   padding: 6px 10px;
-  background: rgba(255, 210, 59, 0.1);
-  color: var(--accent);
+  background: rgba(255, 210, 59, 0.12);
+  border-bottom: 1px solid var(--border);
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.04em;
+  color: var(--accent);
 }
 
 #chat-log .tool-card-body {
