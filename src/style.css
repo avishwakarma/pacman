@@ -365,11 +365,77 @@ body {
   cursor: pointer;
 }
 
-/* --- model-status card -------------------------------------------------
-   Styled plainly on purpose — it reads as ordinary chat scrollback (see
-   the #chat-log comment above for why it lives inside the log at all). */
+/* --- model-status card ---------------------------------------------
+   Swaps between "loading", "loaded", and "error" looks — see
+   ai/model-status-ui.js's renderModelStatus* helpers, which rewrite this
+   element's innerHTML rather than juggling several conditionally-hidden
+   children, since the states are structurally different, not just
+   recolored. Unused on this branch (nothing sets these classes yet) —
+   see the #chat-log comment above for why the card lives inside the log
+   at all once it's wired in. */
 #model-status {
   flex: 0 0 auto;
+  border-radius: 10px;
+  padding: 10px 14px;
   font-size: 12px;
   color: var(--text-mid);
+}
+
+#model-status.loading {
+  background: var(--box-bg);
+  border: 1px solid var(--box-border);
+}
+
+#model-status.loaded {
+  background: var(--green-border);
+}
+
+#model-status.error {
+  background: var(--box-bg);
+  border: 1px solid var(--red);
+}
+
+#model-status-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+#model-status-title {
+  color: #dbdbdb;
+  font-weight: 800;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+}
+
+#model-status-percent {
+  color: var(--accent);
+  font-weight: 800;
+  font-size: 18px;
+}
+
+#model-status-header img {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+
+#model-status-text {
+  margin-top: 6px;
+  color: var(--text-mid);
+  font-size: 11px;
+}
+
+#model-status-meta {
+  margin-top: 6px;
+  color: #818181;
+  font-size: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#model-status.loaded #model-status-meta {
+  color: #bfbfbf;
 }

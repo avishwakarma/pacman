@@ -1,13 +1,15 @@
-// Stage 1 (this branch): Canvas 2D rendering, full gameplay, arcade UI. The
-// WebGPU renderer, the autopilot agent, and WebMCP tool-calling all exist
-// already in this repo (render/webgpu-renderer.js, game/agent.js,
-// mcp/*.js, ai/tool-loop.js) — they're just not imported here yet. Each is
-// wired in with a small diff on the next branch (see README.md's branch
-// table): `webgpu` adds the renderer, `player-agent` adds the autopilot
-// toggle, `webmcp` adds real tool-calling to the chat panel.
+// Stage 2 (this branch): adds real WebGPU rendering on top of Stage 1's
+// Canvas 2D game. chooseRenderer() below tries WebGPU first and falls back
+// to the exact same Canvas 2D renderer from `main` on any failure — the
+// game logic itself (game/*.js) has no idea which one is drawing it. The
+// autopilot agent and WebMCP tool-calling still exist in this repo
+// (game/agent.js, mcp/*.js, ai/tool-loop.js) but aren't wired in yet — see
+// README.md's branch table for what `player-agent` and `webmcp` add.
 
 import './style.css';
+import { checkWebGPUSupport } from './render/utils/capability-check.js';
 import { renderFallback, initCanvasRenderer, renderFrame } from './render/canvas-renderer.js';
+import { initRenderer, renderFrameGPU } from './render/webgpu-renderer.js';
 import { loadModel } from './ai/llm-loader.js';
 import { initChatPanel, appendMessage } from './ai/chat-panel.js';
 import { createInitialState } from './game/gameState.js';
@@ -59,6 +61,35 @@ function syncGameOverOverlay(state) {
   gameOverOverlay.setAttribute('aria-hidden', String(!state.gameOver));
 }
 
+// Tries WebGPU first, falls back to Canvas 2D on any failure — both draw
+// the exact same game state, so the rest of the game loop below never
+// needs to know which one is active beyond calling drawFrame(state). The
+// cabinet footer only has room for a short renderer name (see the Figma
+// design), so the full fallback reason goes in a title attribute instead
+// of the visible label — still inspectable, just not printed on-screen.
+async function chooseRenderer() {
+  const support = await checkWebGPUSupport();
+  if (!support.supported) {
+    rendererLabel.textContent = 'Canvas 2D';
+    rendererLabel.title = `WebGPU not available — using Canvas 2D (${support.reason})`;
+    const ctx = initCanvasRenderer(canvas);
+    return { frame: (state) => renderFrame(ctx, state) };
+  }
+
+  try {
+    const gpu = await initRenderer(canvas, support.adapter);
+    rendererLabel.textContent = 'WebGPU';
+    rendererLabel.title = 'WebGPU renderer active';
+    return { frame: (state) => renderFrameGPU(gpu, state) };
+  } catch (err) {
+    console.error(err);
+    rendererLabel.textContent = 'Canvas 2D';
+    rendererLabel.title = `WebGPU not available — using Canvas 2D (${err.message})`;
+    const ctx = initCanvasRenderer(canvas);
+    return { frame: (state) => renderFrame(ctx, state) };
+  }
+}
+
 function syncStartOverlay(started) {
   startOverlay.classList.toggle('visible', !started);
   startOverlay.setAttribute('aria-hidden', String(started));
@@ -69,17 +100,19 @@ function syncPauseOverlay(paused) {
   pauseOverlay.setAttribute('aria-hidden', String(!paused));
 }
 
-function startGame() {
-  let ctx;
+async function startGame() {
+  let drawFrame;
   let state;
   try {
-    // initCanvasRenderer/createInitialState are the only two calls likely to
-    // throw during setup (e.g. no 2D context available) — caught here so a
-    // broken environment gets a readable message drawn on the canvas
-    // instead of a blank page and a silent console error.
-    ctx = initCanvasRenderer(canvas);
+    // chooseRenderer() already handles a WebGPU failure internally (falls
+    // back to Canvas 2D), so what's actually likely to throw here is
+    // initCanvasRenderer's own setup (e.g. no 2D context available) or
+    // createInitialState — caught here so a broken environment gets a
+    // readable message drawn on the canvas instead of a blank page and a
+    // silent console error.
+    const renderer = await chooseRenderer();
+    drawFrame = renderer.frame;
     state = createInitialState();
-    rendererLabel.textContent = 'Canvas 2D';
     renderLives(state.lives);
   } catch (err) {
     console.error(err);
@@ -149,7 +182,7 @@ function startGame() {
     }
 
     syncGameOverOverlay(state);
-    renderFrame(ctx, state);
+    drawFrame(state);
     requestAnimationFrame(tick);
   }
   requestAnimationFrame(tick);
